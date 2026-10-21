@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>knowledge film</title>
+<style>
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:500;src:url(engine/fonts/cormorant-garamond-latin-500-italic.woff2) format('woff2');}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:600;src:url(engine/fonts/cormorant-garamond-latin-600-normal.woff2) format('woff2');}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:500;src:url(engine/fonts/cormorant-garamond-latin-500-normal.woff2) format('woff2');}
+html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}
+</style>
+<!-- 1 文案与配置（每支片子改它） -->
+<script src="script.js"></script>
+</head><body>
+<canvas id="cv"></canvas>
+<!-- 2 引擎核心：时间轴、字幕、合成器 -->
+<script src="engine/core.js"></script>
+<!-- 3 画风：按 FILM.style 载入 engine/themes/<style>.js -->
+<script>document.write('<script src="engine/themes/' + (window.FILM && FILM.style || 'blackgold') + '.js"><\/script>');</script>
+<!-- 4 通用组件 -->
+<script src="engine/comp.js"></script>
+<!-- 5 场景（每支片子改它） -->
+<script src="scenes.js"></script>
+<script>boot();</script>
+</body></html>

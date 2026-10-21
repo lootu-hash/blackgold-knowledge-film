@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body><canvas id="cv"></canvas><script>
+// 黑金封面生成器：画布 1080×1920 逻辑坐标，按 SCALE 输出。规范见 SKILL.md「封面设计规范」。
+// 每个画风一套四色（底 / 标题强调 / 线与英文 / 主文字）。骨架位置所有画风相同
+const PAL = {
+  blackgold: { bg: '#0B0805', gold: '#D2A860', line: '#C9A05A', cream: '#F7EEE0', cjk: 'serif' },
+  led:       { bg: '#0C0C0D', gold: '#3DFF8A', line: '#8E8981', cream: '#EDE8DF', cjk: 'sans', tex: 'dots' },
+};
+let C = PAL.blackgold;
+const col = v => C[v] || v || C.cream;
+let CJK = "'Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif"; const EN = "Inter,'Helvetica Neue',Arial,sans-serif";
+window.draw = (S, SCALE) => {
+  const cv = document.getElementById('cv'); cv.width = 1080 * SCALE; cv.height = 1920 * SCALE; const c = cv.getContext('2d'); c.scale(SCALE, SCALE);
+  const report = { rows: [], problems: [] };
+  C = PAL[S.style || 'blackgold'] || PAL.blackgold;
+  CJK = C.cjk === 'sans' ? "'Noto Sans CJK SC','Source Han Sans SC','PingFang SC',sans-serif" : "'Noto Serif CJK SC','Source Han Serif SC','Songti SC',serif";
+  c.fillStyle = C.bg; c.fillRect(0, 0, 1080, 1920);
+  if (C.tex === 'grid') { c.strokeStyle = 'rgba(20,20,20,0.05)'; c.lineWidth = 1; for (let x = 40; x < 1080; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 1920); c.stroke(); } for (let y = 40; y < 1920; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(1080, y); c.stroke(); } }
+  if (C.tex === 'dots') { c.fillStyle = 'rgba(237,232,223,0.05)'; for (let x = 6; x < 1080; x += 12) for (let y = 6; y < 1920; y += 12) { c.beginPath(); c.arc(x, y, 1.6, 0, 7); c.fill(); } }
+  if (C.tex === 'paper' || C.tex === 'smudge') { const g = c.createRadialGradient(540, 800, 300, 540, 900, 1300); g.addColorStop(0, C.tex === 'paper' ? 'rgba(255,252,240,0.35)' : 'rgba(236,235,228,0.04)'); g.addColorStop(1, C.tex === 'paper' ? 'rgba(120,90,50,0.22)' : 'rgba(0,0,0,0.35)'); c.fillStyle = g; c.fillRect(0, 0, 1080, 1920); }
+  for (const g of (S.glow || [])) { // 径向光：椭圆，中心 (x+w/2, y+h/2)
+    c.save(); c.translate(g.x + g.w / 2, g.y + g.h / 2); c.scale(1, g.h / g.w); const r = g.w / 2;
+    const gr = c.createRadialGradient(0, 0, 0, 0, 0, r); const p = g.peak ?? .26; const hx = n => { const v = parseInt(C.gold.slice(1), 16); return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${n})`; }; const pp = (C.bg < '#8' ? p : p * .45); gr.addColorStop(0, hx(pp)); gr.addColorStop(.45, hx(pp * .38)); gr.addColorStop(1, hx(0));
+    c.fillStyle = gr; c.beginPath(); c.arc(0, 0, r, 0, 7); c.fill(); c.restore(); }
+  const rule = (x, y, w, h, a) => { c.save(); c.globalAlpha = a; c.fillStyle = C.line; c.fillRect(x, y, w, h); c.restore(); };
+  rule(96, 300, 88, 2, .6);
+  const font = (w, size, fam) => `${w} ${size}px ${fam}`;
+  // 标题行：text 或 segments；y 为行框顶，基线 = y + lh*0.5 + size*0.36（视觉居中）
+  for (const [i, row] of (S.title || []).entries()) {
+    const segs = row.segments || [{ text: row.text, size: row.size, color: row.color, opacity: row.opacity }];
+    const tr = row.tracking ?? 0; const lh = row.lh || Math.round((segs[0].size) * 1.17);
+    let widths = segs.map(s => { c.font = font(500, s.size, CJK); c.letterSpacing = tr + 'px'; return c.measureText(s.text).width - tr; });
+    const total = widths.reduce((a, b) => a + b, 0) + (row.gap || 0) * (segs.length - 1);
+    const maxS = Math.max(...segs.map(s => s.size)); const base = row.y + lh * .5 + maxS * .36;
+    let x = row.align === 'center' ? 540 - total / 2 : (row.align === 'right' ? 984 - total : 96 + (row.x || 0));
+    row._x = x; row._w = total; row._top = base - maxS * .88; row._bot = base + maxS * .12;
+    segs.forEach((s, k) => { c.save(); c.font = font(500, s.size, CJK); c.letterSpacing = tr + 'px'; c.textBaseline = 'alphabetic';
+      const fill = col(s.color || row.color || 'cream');
+      if (row.fade === 'fade_right') { const g = c.createLinearGradient(x, 0, x + widths[k], 0); g.addColorStop(0, fill); g.addColorStop(1, fill + '55'); c.fillStyle = g; } else c.fillStyle = fill;
+      c.globalAlpha = s.opacity ?? row.opacity ?? 1;
+      if (s.charOpacity) { let cx = x; for (const [j, ch] of [...s.text].entries()) { c.globalAlpha = s.charOpacity[j] ?? 1; c.fillText(ch, cx, base); cx += c.measureText(ch).width; } } else c.fillText(s.text, x, base);
+      c.restore(); x += widths[k] + (row.gap || 0); });
+    report.rows.push({ i, w: Math.round(total), top: Math.round(row._top), bot: Math.round(row._bot) });
+    if (total > 888.5) report.problems.push(`第${i + 1}行宽 ${Math.round(total)} > 888`);
+  }
+  for (let i = 1; i < report.rows.length; i++) if (report.rows[i].top < report.rows[i - 1].bot - 4) report.problems.push(`第${i}、${i + 1}行压字`);
+  c.letterSpacing = '0px';
+  if (S.extra) new Function('c', 'S', 'C', 'rule', S.extra)(c, S, C, rule); // 手法：自由绘制
+  if (S.en) { const e = S.en; const n = e.text.length; const size = e.size || (n >= 27 ? 30 : 34); const tr = e.tracking ?? (n <= 18 ? 9 : n <= 26 ? 7 : 5);
+    c.save(); c.font = font(500, size, EN); c.letterSpacing = tr + 'px'; c.fillStyle = C.line; c.textBaseline = 'top'; c.fillText(e.text, 99, e.y || 1066); const w = c.measureText(e.text).width; c.restore(); if (w > 888) report.problems.push('英文小标超宽'); }
+  const dv = S.divider || { kind: 'solid' }; const dy = dv.y || 1176;
+  if (dv.kind === 'solid') rule(96, dy, 888, 1, .24);
+  else if (dv.kind === 'broken') { rule(96, dy, 400, 1, .24); rule(584, dy, 400, 1, .24); }
+  else if (dv.kind === 'ticks') { rule(96, dy, 888, 1, .24); const n = dv.count || 3; for (let k = 0; k <= n; k++) rule(96 + 888 * k / n - (k === n ? 1 : 0), dy - 8, 1, 17, .5); }
+  if (S.sub) { c.save(); c.letterSpacing = (S.sub.tracking ?? 2) + 'px'; c.font = font(400, 56, CJK); c.fillStyle = C.cream; c.globalAlpha = .86; c.textBaseline = 'alphabetic'; let line = '', y = (S.sub.y || 1228) + 60, lines = 0;
+    for (const ch of S.sub.text) { if (ch === '\n' || c.measureText(line + ch).width > 888) { c.fillText(line, 96, y); y += 84; lines++; line = ch === '\n' ? '' : ch; } else line += ch; }
+    c.fillText(line, 96, y); c.restore(); if (y > 1660) report.problems.push('副标超过底部安全线'); }
+  rule(896, 1702, 88, 2, .6);
+  const sg = (S.sign && S.sign.text) || ''; if (sg) { c.save(); c.font = font(500, 30, EN); c.letterSpacing = '8px'; c.fillStyle = C.line; c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(sg, 984 + 8, 1740); c.restore(); }
+  return report;
+};
+</script></body></html>
